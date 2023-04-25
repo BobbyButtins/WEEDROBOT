@@ -12,3 +12,4 @@ Functions of the robot include:
 -limited weed identification(?)
 -storage door movement (opening/closing)
 -LED showing battery status
+
