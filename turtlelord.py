@@ -47,6 +47,9 @@ r_en.value = True
 rrev_en = digitalio.DigitalInOut(board.D22)
 rrev_en.direction = digitalio.Direction.OUTPUT
 rrev_en.value = True
+# LED for testing startup script
+led = digitalio.DigitalInOut(board.D6)
+led.direction = digitalio.Direction.OUTPUT
 
 def move_left(angle):
     '''!
@@ -222,11 +225,13 @@ if __name__ == "__main__":
                             if presses['circle']:
                                 if scoop == "closed":
                                     print("Opening scooper")
+                                    led.value = True
                                     move_left(70)
                                     move_right(30)
                                     scoop = "open"
                                 else:
                                     print("Closing scooper")
+                                    led.value = False
                                     move_left(50)
                                     move_right(50)
                                     scoop = "closed"
