@@ -76,6 +76,33 @@ def move_shreddoor(angle):
     '''
     kit.servo[3].angle = angle
 
+def ldc(pwm):
+    '''!
+    @brief Controls the forward duty cycle of the left DC motor.
+    @param pwm The desired pwm duty cycle.
+    '''
+    l_wheel.duty_cycle = pwm
+
+def ldc_r(pwm):
+    '''!
+    @brief Controls the reverse duty cycle of the left DC motor.
+    @param pwm The desired pwm duty cycle.
+    '''
+    l_wheel_r.duty_cycle = pwm
+
+def rdc(pwm):
+    '''!
+    @brief Controls the forward duty cycle of the right DC motor.
+    @param pwm The desired pwm duty cycle.
+    '''
+    r_wheel.duty_cycle = pwm
+
+def rdc_r(pwm):
+    '''!
+    @brief Controls the reverse duty cycle of the right DC motor.
+    @param pwm The desired pwm duty cycle.
+    '''
+    r_wheel_r.duty_cycle = pwm
 
 if __name__ == "__main__":
     try:
@@ -108,74 +135,158 @@ if __name__ == "__main__":
                 print(type(joystick).__name__)
                 print("Waiting for input from controller")
                 while joystick.connected:   
-                    # test for button presses
-                    presses = joystick.check_presses()
                     # detect joystick input
                     lx = joystick['lx']
                     ly = joystick['ly']
 
-                    # detect controller input
-
-                    # ROBOT MOVEMENT CONTROL
-                    ldc = l_wheel.duty_cycle
-                    ldcr = l_wheel_r.duty_cycle
-                    rdc = r_wheel.duty_cycle
-                    rdcr = r_wheel_r.duty_cycle
-
-                    l_wheel.duty_cycle = 0x9000
-                    r_wheel.duty_cycle = 0x9000
+                    # turn ratio between the left and right wheels
+                    turn_ratio = 1 + abs(lx)
                     
-                        # OPEN/CLOSE SCOOPER
-                    if presses['circle']:
-                        if scoop == "closed":
-                            print("Opening scooper")
-                            move_left(70)
-                            move_right(30)
-                            scoop = "open"
-                        else:
-                            print("Closing scooper")
-                            move_left(50)
-                            move_right(50)
-                            scoop = "closed"
+                    # ROBOT MOVEMENT CONTROL
+                    # forward drive
+                    if ly > 0.2:
+                        # skid turn left
+                        while lx < -0.1:
+                            ldc(int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            ldc_r(0x0000)
+                            print(-int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            rdc(int(round(abs(ly)*100)*0x0090))
+                            rdc_r(0x0000)
+                            lx = joystick['lx']
+                            ly = joystick['ly']
+                            turn_ratio = 1 + abs(lx)
+                            print('left')
+                            presses = joystick.check_presses()
+                            if presses['home']:
+                                raise KeyboardInterrupt
+                            
+                        # skid turn right    
+                        while lx > 0.1:
+                            ldc(int(round(abs(ly)*100)*0x0090))
+                            ldc_r(0x0000)
+                            print(int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            rdc(int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            rdc_r(0x0000)
+                            lx = joystick['lx']
+                            ly = joystick['ly']
+                            turn_ratio = 1 + abs(lx)
+                            print('right')
+                            presses = joystick.check_presses()
+                            if presses['home']:
+                                raise KeyboardInterrupt
+                            
+                    # reverse drive
+                    elif ly < -0.2:
+                        # skid reverse left
+                        while lx < -0.1:
+                            ldc_r(int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            ldc(0x0000)
+                            print(-int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            rdc_r(int(round(abs(ly)*100)*0x0090))
+                            rdc(0x0000)
+                            lx = joystick['lx']
+                            ly = joystick['ly']
+                            turn_ratio = 1 + abs(lx)
+                            print('left')
+                            presses = joystick.check_presses()
+                            if presses['home']:
+                                raise KeyboardInterrupt
+                            
+                        # skid reverse right    
+                        while lx > 0.1:
+                            ldc_r(int(round(abs(ly)*100)*0x0090))
+                            ldc(0x0000)
+                            print(int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            rdc_r(int(round(abs(ly)*100)*0x0090//turn_ratio))
+                            rdc(0x0000)
+                            lx = joystick['lx']
+                            ly = joystick['ly']
+                            turn_ratio = 1 + abs(lx)
+                            print('right')
+                            presses = joystick.check_presses()
+                            if presses['home']:
+                                raise KeyboardInterrupt
+                            
+                    # idle state
+                    else:
+                        while ly > -0.2 and ly < 0.2:
+                            ldc(0x0000)
+                            ldc_r(0x0000)
+                            rdc(0x0000)
+                            rdc_r(0x0000)
+                            lx = joystick['lx']
+                            ly = joystick['ly']
+                            presses = joystick.check_presses()
 
-                    # MOVE SCOOPER UP/DOWN
-                    elif presses['cross']:
-                        if lift == "down":
-                            print("Lifting scooper")
-                            move_transport(50)
-                            lift = "up"
-                        else:
-                            print("Lowering scooper")
-                            move_transport(0)
-                            lift = "down"
+                            # OPEN/CLOSE SCOOPER
+                            if presses['circle']:
+                                if scoop == "closed":
+                                    print("Opening scooper")
+                                    move_left(70)
+                                    move_right(30)
+                                    scoop = "open"
+                                else:
+                                    print("Closing scooper")
+                                    move_left(50)
+                                    move_right(50)
+                                    scoop = "closed"
 
-                    # OPEN/CLOSE SHREDDER DOOR
-                    elif presses['triangle']:
-                        if shreddoor == "closed":
-                            print("Opening shredder door")
-                            move_shreddoor(60)
-                            shreddoor = "open"
-                        else:
-                            print("Closing shredder door")
-                            move_shreddoor(0)
-                            shreddoor = "closed"
+                            # MOVE SCOOPER UP/DOWN
+                            elif presses['cross']:
+                                if lift == "down":
+                                    print("Lifting scooper")
+                                    u = 5
+                                    while u < 50:
+                                        move_transport(u)
+                                        u += 5
+                                        if presses['home']:
+                                            raise KeyboardInterrupt
+                                        time.sleep(0.5)
+                                    lift = "up"
+                                else:
+                                    print("Lowering scooper")
+                                    d = 45
+                                    while d > 0:
+                                        move_transport(u)
+                                        d -= 5
+                                        if presses['home']:
+                                            raise KeyboardInterrupt
+                                        time.sleep(0.5)
+                                    lift = "down"
 
-                    # TURN ON/OFF SHREDDER
-                    elif presses['square']:
-                        if shred_weed == "off":
-                            print("Turning on shredder")
-                            shred.duty_cycle = 0x0100
-                            shred_weed = "on"
-                        else:
-                            print("Turning off shredder")
-                            shred.duty_cycle = 0x0000
-                            shred_weed = "off"
+                            # OPEN/CLOSE SHREDDER DOOR
+                            elif presses['triangle']:
+                                if shreddoor == "closed":
+                                    print("Opening shredder door")
+                                    move_shreddoor(60)
+                                    shreddoor = "open"
+                                else:
+                                    print("Closing shredder door")
+                                    move_shreddoor(0)
+                                    shreddoor = "closed"
 
-                    # EMERGENCY STOP
-                    elif presses['home']:
-                        raise KeyboardInterrupt
+                            # TURN ON/OFF SHREDDER
+                            elif presses['square']:
+                                if shred_weed == "off":
+                                    print("Turning on shredder")
+                                    shred.duty_cycle = 0x0100
+                                    shred_weed = "on"
+                                else:
+                                    print("Turning off shredder")
+                                    shred.duty_cycle = 0x0000
+                                    shred_weed = "off"
+
+                            # EMERGENCY STOP
+                            elif presses['home']:
+                                raise KeyboardInterrupt
 
     except KeyboardInterrupt:
         print("Operation terminated.")
-        l_wheel.duty_cycle = 0x0000
-        r_wheel.duty_cycle = 0x0000            
+        ldc(0x0000)
+        ldc_r(0x0000)
+        rdc(0x0000)
+        rdc_r(0x0000)         
+
+
+
+
