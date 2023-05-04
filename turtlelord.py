@@ -2,6 +2,7 @@ import time
 import busio
 import board
 import adafruit_pca9685
+import digitalio
 from adafruit_servokit import ServoKit
 from approxeng.input.selectbinder import ControllerResource
 from approxeng.input.switch import SwitchJoyConLeft
@@ -32,6 +33,20 @@ r_wheel = pca.channels[6]
 r_wheel_r = pca.channels[7]
 shred = pca.channels[8]
 battery_LED = pca.channels[9]
+# Setup for GPIO pins on the Jetson 40-pin expansion header
+# Used to set the enable pins on the DC motor for forward and reverse drive
+l_en = digitalio.DigitalInOut(board.D18)
+l_en.direction = digitalio.Direction.OUTPUT
+l_en.value = True
+lrev_en = digitalio.DigitalInOut(board.D17)
+lrev_en.direction = digitalio.Direction.OUTPUT
+lrev_en.value = True
+r_en = digitalio.DigitalInOut(board.D23)
+r_en.direction = digitalio.Direction.OUTPUT
+r_en.value = True
+rrev_en = digitalio.DigitalInOut(board.D22)
+rrev_en.direction = digitalio.Direction.OUTPUT
+rrev_en.value = True
 
 def move_left(angle):
     '''!
@@ -102,176 +117,13 @@ if __name__ == "__main__":
                     # detect controller input
 
                     # ROBOT MOVEMENT CONTROL
-                    if ly != 0:
-                        accel = 1
-                        # FULL FORWARD DRIVE
-                        while ly > 0.1 and lx == 0:
-                            presses = joystick.check_presses()
-                            if l_wheel.duty_cycle == 0x0000:
-                                # if wheels are idle
-                                while accel < 5:
-                                    # accelerate wheels over span of 2.5 seconds
-                                    l_wheel.duty_cycle = accel*0x2500
-                                    l_wheel_r.duty_cycle = 0x0000
-                                    r_wheel.duty_cycle = l_wheel.duty_cycle
-                                    r_wheel_r.duty_cycle = 0x0000
-                                    time.sleep(0.5)
-                                    accel += 1
-                                    ly = joystick['ly']
-                                    print('Forward Drive')
-                                    # emergency stop
-                                    if presses['home']:
-                                        raise KeyboardInterrupt
-                            else:
-                                # if wheels are running, no change
-                                ly = joystick['ly']
-                                print('Continue FDrive')
-                                if presses['home']:
-                                    raise KeyboardInterrupt
-                                pass
+                    ldc = l_wheel.duty_cycle
+                    ldcr = l_wheel_r.duty_cycle
+                    rdc = r_wheel.duty_cycle
+                    rdcr = r_wheel_r.duty_cycle
 
-                        # FULL REVERSE DRIVE
-                        while ly < -0.1 and lx == 0:
-                            presses = joystick.check_presses()
-                            if l_wheel_r.duty_cycle == 0x0000:
-                                # accelerate wheels over span of 2.5 seconds
-                                while accel < 5:
-                                    l_wheel_r.duty_cycle = accel*0x2500
-                                    l_wheel.duty_cycle = 0x0000
-                                    r_wheel_r.duty_cycle = l_wheel.duty_cycle
-                                    r_wheel.duty_cycle = 0x0000
-                                    time.sleep(0.5)
-                                    accel += 1
-                                    ly = joystick['ly']
-                                    print('Reverse Drive')
-                                    # emergency stop
-                                    if presses['home']:
-                                        raise KeyboardInterrupt
-                            else:
-                                # if wheels are running, no change
-                                ly = joystick['ly']
-                                print('Continue RDrive')
-                                if presses['home']:
-                                    raise KeyboardInterrupt
-                                pass
-
-                        # TURN LEFT FORWARD DRIVE
-                        while ly > 0.1 and lx < -0.1:
-                            presses = joystick.check_presses()
-                            if l_wheel.duty_cycle == 0x0000:
-                                # accelerate wheels over span of 2.5 seconds
-                                while accel < 5:
-                                    r_wheel.duty_cycle = accel*0x2500
-                                    r_wheel_r.duty_cycle = 0x0000
-                                    l_wheel.duty_cycle = l_wheel.duty_cycle/2
-                                    l_wheel_r.duty_cycle = 0x0000
-                                    time.sleep(0.5)
-                                    accel += 1
-                                    ly = joystick['ly']
-                                    print('Turn Left')
-                                    # emergency stop
-                                    if presses['home']:
-                                        raise KeyboardInterrupt
-                            else:
-                                # if wheels are running
-                                ly = joystick['ly']
-                                print('Left')
-                                r_wheel.duty_cycle = accel*0x2500
-                                r_wheel_r.duty_cycle = 0x0000
-                                l_wheel.duty_cycle = l_wheel.duty_cycle/2
-                                l_wheel_r.duty_cycle = 0x0000
-                                if presses['home']:
-                                    raise KeyboardInterrupt
-
-                        # TURN RIGHT FORWARD DRIVE
-                        while ly > 0.1 and lx > -0.1:
-                            presses = joystick.check_presses()
-                            if l_wheel.duty_cycle == 0x0000:
-                                # accelerate wheels over span of 2.5 seconds
-                                while accel < 5:
-                                    r_wheel.duty_cycle = accel*0x1250
-                                    r_wheel_r.duty_cycle = 0x0000
-                                    l_wheel.duty_cycle = 2*l_wheel.duty_cycle
-                                    l_wheel_r.duty_cycle = 0x0000
-                                    time.sleep(0.5)
-                                    accel += 1
-                                    ly = joystick['ly']
-                                    print('Turn Right')
-                                    # emergency stop
-                                    if presses['home']:
-                                        raise KeyboardInterrupt
-                            else:
-                                # if wheels are running
-                                ly = joystick['ly']
-                                print('Right')
-                                r_wheel.duty_cycle = accel*0x1250
-                                r_wheel_r.duty_cycle = 0x0000
-                                l_wheel.duty_cycle = 2*l_wheel.duty_cycle
-                                l_wheel_r.duty_cycle = 0x0000
-                                if presses['home']:
-                                    raise KeyboardInterrupt
-
-                        # REVERSE TO LEFT
-                        while ly < -0.1 and lx < -0.1:
-                            presses = joystick.check_presses()
-                            if l_wheel.duty_cycle == 0x0000:
-                                # accelerate wheels over span of 2.5 seconds
-                                while accel < 5:
-                                    r_wheel_r.duty_cycle = accel*0x2500
-                                    r_wheel.duty_cycle = 0x0000
-                                    l_wheel_r.duty_cycle = l_wheel.duty_cycle/2
-                                    l_wheel.duty_cycle = 0x0000
-                                    time.sleep(0.5)
-                                    accel += 1
-                                    ly = joystick['ly']
-                                    print('Reverse Left')
-                                    # emergency stop
-                                    if presses['home']:
-                                        raise KeyboardInterrupt
-                            else:
-                                # if wheels are running
-                                ly = joystick['ly']
-                                print('RLeft')
-                                r_wheel_r.duty_cycle = accel*0x2500
-                                r_wheel.duty_cycle = 0x0000
-                                l_wheel_r.duty_cycle = l_wheel.duty_cycle/2
-                                l_wheel.duty_cycle = 0x0000
-                                if presses['home']:
-                                    raise KeyboardInterrupt
-
-                        # REVERSE TO RIGHT
-                        while ly < -0.1 and lx > 0.1:
-                            presses = joystick.check_presses()
-                            if l_wheel.duty_cycle == 0x0000:
-                                # accelerate wheels over span of 2.5 seconds
-                                while accel < 5:
-                                    r_wheel_r.duty_cycle = accel*0x1250
-                                    r_wheel.duty_cycle = 0x0000
-                                    l_wheel_r.duty_cycle = 2*l_wheel.duty_cycle
-                                    l_wheel.duty_cycle = 0x0000
-                                    time.sleep(0.5)
-                                    accel += 1
-                                    ly = joystick['ly']
-                                    print('Reverse Right')
-                                    # emergency stop
-                                    if presses['home']:
-                                        raise KeyboardInterrupt
-                            else:
-                                # if wheels are running
-                                ly = joystick['ly']
-                                print('RRight')
-                                r_wheel_r.duty_cycle = accel*0x1250
-                                r_wheel.duty_cycle = 0x0000
-                                l_wheel_r.duty_cycle = 2*l_wheel.duty_cycle
-                                l_wheel.duty_cycle = 0x0000
-                                if presses['home']:
-                                    raise KeyboardInterrupt
-
-                        print("Stopping wheels")                          
-                        l_wheel.duty_cycle = 0x0000
-                        r_wheel.duty_cycle = 0x0000
-                        accel = 1
-                        time.sleep(0.1)
+                    l_wheel.duty_cycle = 0x9000
+                    r_wheel.duty_cycle = 0x9000
                     
                         # OPEN/CLOSE SCOOPER
                     if presses['circle']:
@@ -327,7 +179,3 @@ if __name__ == "__main__":
         print("Operation terminated.")
         l_wheel.duty_cycle = 0x0000
         r_wheel.duty_cycle = 0x0000            
-
-
-
-
