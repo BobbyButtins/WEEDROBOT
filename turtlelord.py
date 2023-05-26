@@ -12,17 +12,16 @@ global u
 
 # Set channels to the number of servo channels on the kit
 # For the PCA9685 driver, we have 16 channels
-kit = ServoKit(channels=16)
+# If using bus 0 (pins 26/27), will need to create bus object like this:
+i2c_bus0 = busio.I2C(board.SCL_1, board.SDA_1)
+# and include it in the parameters for ServoKit: i2c=i2c_bus0
+kit = ServoKit(channels=16, i2c=i2c_bus0)
 # Don't need to setup bus if SCL and SDA are connected to pins 3/5
 # which are for bus 1 (default)
 
-# If using bus 0 (pins 26/27), will need to create bus object like this:
-# i2c_bus0 = busio.I2C(board.SCL_1, board.SDA_1)
-# and include it in the parameters for ServoKit: i2c=i2c_bus0
-
 # Setup bus for DC motor control through PCA9685 driver
-i2c = busio.I2C(board.SCL, board.SDA)
-pca = adafruit_pca9685.PCA9685(i2c)
+i2c = busio.I2C(board.SCL_1, board.SDA_1)
+pca = adafruit_pca9685.PCA9685(i2c_bus0)
 # Set frequency for board
 pca.frequency = 60
 # Specify channels for each DC motor
@@ -33,7 +32,7 @@ l_wheel_r = pca.channels[5]
 r_wheel = pca.channels[6]
 r_wheel_r = pca.channels[7]
 shred = pca.channels[8]
-battery_LED = pca.channels[9]
+init_LED = pca.channels[9]
 # Setup for GPIO pins on the Jetson 40-pin expansion header
 # Used to set the enable pins on the DC motor for forward and reverse drive
 # Jetson pin 12
@@ -44,19 +43,25 @@ l_en.value = True
 lrev_en = digitalio.DigitalInOut(board.D17)
 lrev_en.direction = digitalio.Direction.OUTPUT
 lrev_en.value = True
-# pin 16
-r_en = digitalio.DigitalInOut(board.D23)
+# pin 22
+r_en = digitalio.DigitalInOut(board.D25)
 r_en.direction = digitalio.Direction.OUTPUT
 r_en.value = True
-# pin 15
-rrev_en = digitalio.DigitalInOut(board.D22)
+# pin 21
+rrev_en = digitalio.DigitalInOut(board.D9)
 rrev_en.direction = digitalio.Direction.OUTPUT
 rrev_en.value = True
 # physical ESTOP (pin 31)
 # pulled down (False when switch off, True when switch on)
 switch = digitalio.DigitalInOut(board.D6)
+switch.direction = digitalio.Direction.OUTPUT
+switch.value = False
 switch.direction = digitalio.Direction.INPUT
 # switch.pull = digitalio.Pull.DOWN
+# OE pin on PCA9685 for disabling all PWM outputs (Low = On, High = Off)
+OE = digitalio.DigitalInOut(board.D19)
+OE.direction = digitalio.Direction.OUTPUT
+OE.value = False
 
 def move_left(angle):
     '''!
@@ -119,7 +124,6 @@ def estop():
     @brief Emergency stop command. Disables the enable pins for the DC motors and stops operation of the servos
            after moving them to a safe position. 
     '''
-    print('EMERGENCY STOP')
     # bring all DC motors to a stop
     # ldc(0x0000)
     # ldc_r(0x0000)
@@ -138,10 +142,12 @@ def estop():
 
     # keep power on while preventing any further input
     # wait for diagnosis of issue/reset or shutdown
-    switch.direction = digitalio.Direction.OUTPUT
-    switch.value = False
-    while True:
-        time.sleep(1)
+    # switch.direction = digitalio.Direction.OUTPUT
+    # switch.value = False
+    init_LED.duty_cycle = 0x0000
+    OE.value = True
+    print('EMERGENCY STOP')
+    exit()
 
     
 if __name__ == "__main__":
@@ -171,13 +177,15 @@ if __name__ == "__main__":
         n = 0
 
         while True:
+            # check if estop is pressed
+            print(switch.value)
+            if switch.value == True:
+                estop()
             with ControllerResource() as joystick:
                 print(type(joystick).__name__)
                 print("Waiting for input from controller")
-                while joystick.connected:   
-                    # check if estop is pressed
-                    print(switch.value)
-
+                init_LED.duty_cycle = 0xFFFF
+                while joystick.connected: 
                     # detect joystick input
                     lx = joystick['lx']
                     ly = joystick['ly']
@@ -189,12 +197,12 @@ if __name__ == "__main__":
                     # forward drive
                     if ly > 0.2:
                         # skid turn left
-                        while lx < -0.1:
-                            ldc(int(round(abs(ly)*100)*0x00C0//turn_ratio))
+                        if lx < -0.1:
+                            ldc(int(round(abs(ly)*100)*0x00F0//turn_ratio))
                             ldc_r(0x0000)
-                            print(-int(round(abs(ly)*100)*0x00C0//turn_ratio))
-                            rdc(int(round(abs(ly)*100)*0x00C0))
-                            print(int(round(abs(ly)*100)*0x00C0))
+                            print(-int(round(abs(ly)*100)*0x00F0//turn_ratio))
+                            rdc(int(round(abs(ly)*100)*0x00F0))
+                            print(int(round(abs(ly)*100)*0x00F0))
                             rdc_r(0x0000)
                             lx = joystick['lx']
                             ly = joystick['ly']
@@ -205,12 +213,12 @@ if __name__ == "__main__":
                                 estop()
                             
                         # skid turn right    
-                        while lx > 0.1:
-                            ldc(int(round(abs(ly)*100)*0x00C0))
+                        elif lx > 0.1:
+                            ldc(int(round(abs(ly)*100)*0x00F0))
                             ldc_r(0x0000)
-                            print(int(round(abs(ly)*100)*0x00C0//turn_ratio))
-                            rdc(int(round(abs(ly)*100)*0x00C0//turn_ratio))
-                            print(int(round(abs(ly)*100)*0x00C0//turn_ratio))
+                            print(int(round(abs(ly)*100)*0x00F0//turn_ratio))
+                            rdc(int(round(abs(ly)*100)*0x00F0//turn_ratio))
+                            print(int(round(abs(ly)*100)*0x00F0//turn_ratio))
                             rdc_r(0x0000)
                             lx = joystick['lx']
                             ly = joystick['ly']
@@ -223,12 +231,12 @@ if __name__ == "__main__":
                     # reverse drive
                     elif ly < -0.2:
                         # skid reverse left
-                        while lx < -0.1:
-                            ldc_r(int(round(abs(ly)*100)*0x00C0//turn_ratio))
+                        if lx < -0.1:
                             ldc(0x0000)
-                            print(-int(round(abs(ly)*100)*0x00C0//turn_ratio))
-                            rdc_r(int(round(abs(ly)*100)*0x00C0))
+                            ldc_r(int(round(abs(ly)*100)*0x00F0//turn_ratio))
+                            print(-int(round(abs(ly)*100)*0x00F0//turn_ratio))
                             rdc(0x0000)
+                            rdc_r(int(round(abs(ly)*100)*0x00F0))
                             lx = joystick['lx']
                             ly = joystick['ly']
                             turn_ratio = 1 + abs(lx)
@@ -238,12 +246,12 @@ if __name__ == "__main__":
                                 estop()
                             
                         # skid reverse right    
-                        while lx > 0.1:
-                            ldc_r(int(round(abs(ly)*100)*0x00C0))
+                        elif lx > 0.1:
                             ldc(0x0000)
-                            print(int(round(abs(ly)*100)*0x00C0//turn_ratio))
-                            rdc_r(int(round(abs(ly)*100)*0x00C0//turn_ratio))
+                            ldc_r(int(round(abs(ly)*100)*0x00F0))
+                            print(int(round(abs(ly)*100)*0x00F0//turn_ratio))
                             rdc(0x0000)
+                            rdc_r(int(round(abs(ly)*100)*0x00F0//turn_ratio))
                             lx = joystick['lx']
                             ly = joystick['ly']
                             turn_ratio = 1 + abs(lx)
@@ -267,7 +275,7 @@ if __name__ == "__main__":
                             if presses['circle']:
                                 if scoop == "closed":
                                     print("Opening scooper")
-                                    time.sleep(1)
+                                    time.sleep(0.5)
                                     presses = joystick.check_presses()
                                     # prob not the most efficient method to do this, but will be optimized in future
                                     if presses['home'] or switch.value == True:
@@ -277,7 +285,7 @@ if __name__ == "__main__":
                                     scoop = "open"
                                 else:
                                     print("Closing scooper")
-                                    time.sleep(1)
+                                    time.sleep(0.5)
                                     presses = joystick.check_presses()
                                     # prob not the most efficient method to do this, but will be optimized in future
                                     if presses['home'] or switch.value == True:
@@ -291,7 +299,7 @@ if __name__ == "__main__":
                                 if lift == "down":
                                     print("Lifting scooper")
                                     u = 5
-                                    time.sleep(1)
+                                    time.sleep(0.5)
                                     while u < 50:
                                         move_transport(u)
                                         u += 5
@@ -303,7 +311,7 @@ if __name__ == "__main__":
                                 else:
                                     print("Lowering scooper")
                                     u = 45
-                                    time.sleep(1)
+                                    time.sleep(0.5)
                                     while u > 0:
                                         move_transport(u)
                                         u -= 5
@@ -317,7 +325,7 @@ if __name__ == "__main__":
                             elif presses['triangle']:
                                 if shreddoor == "closed":
                                     print("Opening shredder door")
-                                    time.sleep(1)
+                                    time.sleep(0.5)
                                     presses = joystick.check_presses()
                                     # prob not the most efficient method to do this, but will be optimized in future
                                     if presses['home'] or switch.value == True:
@@ -326,7 +334,7 @@ if __name__ == "__main__":
                                     shreddoor = "open"
                                 else:
                                     print("Closing shredder door")
-                                    time.sleep(1)
+                                    time.sleep(0.5)
                                     presses = joystick.check_presses()
                                     # prob not the most efficient method to do this, but will be optimized in future
                                     if presses['home'] or switch.value == True:
@@ -334,16 +342,16 @@ if __name__ == "__main__":
                                     move_shreddoor(10)
                                     shreddoor = "closed"
 
-                            # TURN ON/OFF SHREDDER
-                            elif presses['square']:
-                                if shred_weed == "off":
-                                    print("Turning on shredder")
-                                    shred.duty_cycle = 0x0100
-                                    shred_weed = "on"
-                                else:
-                                    print("Turning off shredder")
-                                    shred.duty_cycle = 0x0000
-                                    shred_weed = "off"
+                            # TURN ON/OFF SHREDDER (not implemented)
+                            # elif presses['square']:
+                            #     if shred_weed == "off":
+                            #         print("Turning on shredder")
+                            #         shred.duty_cycle = 0x0100
+                            #         shred_weed = "on"
+                            #     else:
+                            #         print("Turning off shredder")
+                            #         shred.duty_cycle = 0x0000
+                            #         shred_weed = "off"
 
                             # EMERGENCY STOP
                             elif presses['home'] or switch == True:
@@ -358,8 +366,9 @@ if __name__ == "__main__":
                 lrev_en.value = False
                 r_en.value = False
                 rrev_en.value = False
-                while True:
-                    time.sleep(1)
+                init_LED = 0x0000
+                print('Controller disconnected')
+                exit()
 
     except KeyboardInterrupt: 
         print("Operation terminated.")
@@ -370,3 +379,4 @@ if __name__ == "__main__":
         lrev_en.value = False
         r_en.value = False
         rrev_en.value = False
+        init_LED.duty_cycle = 0x0000
