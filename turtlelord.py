@@ -61,7 +61,7 @@ switch.direction = digitalio.Direction.INPUT
 # OE pin on PCA9685 for disabling all PWM outputs (Low = On, High = Off)
 OE = digitalio.DigitalInOut(board.D19)
 OE.direction = digitalio.Direction.OUTPUT
-OE.value = False
+OE.value = True
 
 def move_left(angle):
     '''!
@@ -135,9 +135,13 @@ def estop():
     rrev_en.value = False
 
     # slowly set all servos to safe locations
-    move_left(80)
-    move_right(20)
-    move_transport(u)
+    move_left(70)
+    move_right(30)
+    global u
+    while u > 30:
+        move_transport(u)
+        u -= 5
+        time.sleep(0.5)
     move_shreddoor(10)
 
     # keep power on while preventing any further input
@@ -145,7 +149,7 @@ def estop():
     # switch.direction = digitalio.Direction.OUTPUT
     # switch.value = False
     init_LED.duty_cycle = 0x0000
-    OE.value = True
+    # OE.value = True
     print('EMERGENCY STOP')
     exit()
 
@@ -156,16 +160,17 @@ if __name__ == "__main__":
         # Change PWM range for all the servos to get the full range of motion
         kit.servo[0].set_pulse_width_range(1000, 3000)
         kit.servo[1].set_pulse_width_range(1000, 3000)
-        kit.servo[2].set_pulse_width_range(1000, 3000)
+        kit.servo[2].set_pulse_width_range(1000, 4000)
         kit.servo[3].set_pulse_width_range(1000, 3000)
 
         # Set starting positions for the scooper servos
+        OE.value = False
         move_left(60)
         move_right(40)
         scoop = "closed"
 
         # Set range of motion for DOCYKE servo to 360 degrees (default is 180 degrees)
-        # kit.servo[2].actuation_range = 360
+        kit.servo[2].actuation_range = 360
         u = 5
         lift = "down"
 
@@ -191,75 +196,164 @@ if __name__ == "__main__":
                     ly = joystick['ly']
                     
                     # turn ratio between the left and right wheels
-                    turn_ratio = 1 + abs(lx)
+                    turn_ratio = 50*abs(lx)
                     
                     # ROBOT MOVEMENT CONTROL
                     # forward drive
                     if ly > 0.2:
+                        if lx > -0.1 and lx < 0.1:
+                            ldc_r(0x0000)
+                            ldc(int(round(abs(ly)*100)*0x028F))
+                            print(-int(round(abs(ly)*100)*0x028F))
+                            rdc_r(0x0000)
+                            rdc(int(round(abs(ly)*100)*0x028F))
+                            print(int(round(abs(ly)*100)*0x028F))
+                            lx = joystick['lx']
+                            ly = joystick['ly']
+                            turn_ratio = 50*abs(lx)
+                            print('forward')
+                            presses = joystick.check_presses()
+                            if presses['home'] or switch.value == True:
+                                estop()
                         # skid turn left
                         if lx < -0.1:
-                            ldc(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            ldc_r(0x0000)
-                            print(-int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            rdc(int(round(abs(ly)*100)*0x00F0))
-                            print(int(round(abs(ly)*100)*0x00F0))
-                            rdc_r(0x0000)
-                            lx = joystick['lx']
-                            ly = joystick['ly']
-                            turn_ratio = 1 + abs(lx)
-                            print('left')
-                            presses = joystick.check_presses()
-                            if presses['home'] or switch.value == True:
-                                estop()
-                            
+                            if ly > abs(lx):
+                                ldc_r(0x0000)
+                                ldc(int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                print(-int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                rdc_r(0x0000)
+                                rdc(int(round(abs(ly)*100)*0x028F))
+                                print(int(round(abs(ly)*100)*0x028F))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('left')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
+                            elif abs(lx) >= ly:
+                                ldc_r(0x0000)
+                                ldc(int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                print(-int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                rdc_r(0x0000)
+                                rdc(int(round(abs(lx)*100)*0x028F))
+                                print(int(round(abs(lx)*100)*0x028F))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('left')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
+
                         # skid turn right    
                         elif lx > 0.1:
-                            ldc(int(round(abs(ly)*100)*0x00F0))
-                            ldc_r(0x0000)
-                            print(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            rdc(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            print(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            rdc_r(0x0000)
-                            lx = joystick['lx']
-                            ly = joystick['ly']
-                            turn_ratio = 1 + abs(lx)
-                            print('right')
-                            presses = joystick.check_presses()
-                            if presses['home'] or switch.value == True:
-                                estop()
+                            if ly > lx:
+                                ldc_r(0x0000)
+                                ldc(int(round(abs(ly)*100)*0x028F))
+                                print(int(round(abs(ly)*100)*0x028F))
+                                rdc_r(0x0000)
+                                rdc(int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                print(int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('right')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
+
+                            elif ly <= lx:
+                                ldc_r(0x0000)
+                                ldc(int(round(abs(lx)*100)*0x028F))
+                                print(int(round(abs(lx)*100)*0x028F))
+                                rdc_r(0x0000)
+                                rdc(int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                print(int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('right')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
                             
                     # reverse drive
                     elif ly < -0.2:
-                        # skid reverse left
-                        if lx < -0.1:
+                        if lx > -0.1 and lx < 0.1:
                             ldc(0x0000)
-                            ldc_r(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            print(-int(round(abs(ly)*100)*0x00F0//turn_ratio))
+                            ldc_r(int(round(abs(ly)*100)*0x028F))
+                            print(-int(round(abs(ly)*100)*0x028F))
                             rdc(0x0000)
-                            rdc_r(int(round(abs(ly)*100)*0x00F0))
+                            rdc_r(int(round(abs(ly)*100)*0x028F))
                             lx = joystick['lx']
                             ly = joystick['ly']
-                            turn_ratio = 1 + abs(lx)
-                            print('rleft')
+                            turn_ratio = 50*abs(lx)
+                            print('reverse')
                             presses = joystick.check_presses()
                             if presses['home'] or switch.value == True:
                                 estop()
+                        # skid reverse left
+                        if lx < -0.1:
+                            if abs(ly) > abs(lx):
+                                ldc(0x0000)
+                                ldc_r(int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                print(-int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                rdc(0x0000)
+                                rdc_r(int(round(abs(ly)*100)*0x028F))
+                                print(-int(round(abs(ly)*100)*0x028F))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('rleft')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
+                            elif abs(ly) <= abs(lx):
+                                ldc(0x0000)
+                                ldc_r(int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                print(-int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                rdc(0x0000)
+                                rdc_r(int(round(abs(lx)*100)*0x028F))
+                                print(-int(round(abs(lx)*100)*0x028F))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('rleft')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
                             
                         # skid reverse right    
                         elif lx > 0.1:
-                            ldc(0x0000)
-                            ldc_r(int(round(abs(ly)*100)*0x00F0))
-                            print(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            rdc(0x0000)
-                            rdc_r(int(round(abs(ly)*100)*0x00F0//turn_ratio))
-                            lx = joystick['lx']
-                            ly = joystick['ly']
-                            turn_ratio = 1 + abs(lx)
-                            print('rright')
-                            presses = joystick.check_presses()
-                            if presses['home'] or switch.value == True:
-                                estop()
-                            
+                            if abs(ly) > lx:
+                                ldc(0x0000)
+                                ldc_r(int(round(abs(ly)*100)*0x028F))
+                                print(int(round(abs(ly)*100)*0x028F))
+                                rdc(0x0000)
+                                rdc_r(int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                print(int(round(abs(ly)*100)*0x028F//turn_ratio))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('rright')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
+                            if abs(ly) <= lx:
+                                ldc(0x0000)
+                                ldc_r(int(round(abs(lx)*100)*0x028F))
+                                print(int(round(abs(lx)*100)*0x028F))
+                                rdc(0x0000)
+                                rdc_r(int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                print(int(round(abs(lx)*100)*0x028F//turn_ratio))
+                                lx = joystick['lx']
+                                ly = joystick['ly']
+                                turn_ratio = 50*abs(lx)
+                                print('rright')
+                                presses = joystick.check_presses()
+                                if presses['home'] or switch.value == True:
+                                    estop()
                     # idle state
                     else:
                         while ly > -0.2 and ly < 0.2:
@@ -280,8 +374,8 @@ if __name__ == "__main__":
                                     # prob not the most efficient method to do this, but will be optimized in future
                                     if presses['home'] or switch.value == True:
                                         estop()
-                                    move_left(80)
-                                    move_right(20)
+                                    move_left(77)
+                                    move_right(27)
                                     scoop = "open"
                                 else:
                                     print("Closing scooper")
@@ -298,11 +392,11 @@ if __name__ == "__main__":
                             elif presses['cross']:
                                 if lift == "down":
                                     print("Lifting scooper")
-                                    u = 5
+                                    u = 30
                                     time.sleep(0.5)
-                                    while u < 50:
+                                    while u < 345:
+                                        u += 15
                                         move_transport(u)
-                                        u += 5
                                         presses = joystick.check_presses()
                                         if presses['home'] or switch.value == True:
                                             estop()
@@ -310,11 +404,11 @@ if __name__ == "__main__":
                                     lift = "up"
                                 else:
                                     print("Lowering scooper")
-                                    u = 45
+                                    u = 345
                                     time.sleep(0.5)
-                                    while u > 0:
+                                    while u > 30:
                                         move_transport(u)
-                                        u -= 5
+                                        u -= 15
                                         presses = joystick.check_presses()
                                         if presses['home'] or switch.value == True:
                                             estop()
