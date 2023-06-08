@@ -16,6 +16,7 @@ Functions of the robot include:
 -storage door movement (opening/closing)
 
 [FUTURE IMPLEMENTATION]
+
 -shredding (on/off)
 
 -weed identification
