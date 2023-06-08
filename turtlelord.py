@@ -55,14 +55,6 @@ r_en.value = True
 rrev_en = digitalio.DigitalInOut(board.D9)
 rrev_en.direction = digitalio.Direction.OUTPUT
 rrev_en.value = True
-# physical ESTOP (pin 31)
-# pulled down (False when switch off, True when switch on)
-# switch = digitalio.DigitalInOut(board.D6)
-# switch.direction = digitalio.Direction.OUTPUT
-# switch.value = False
-# switch.direction = digitalio.Direction.INPUT
-# switch.pull = digitalio.Pull.DOWN
-
 # OE pin on PCA9685 for disabling all PWM outputs (Low/False = On, High/True = Off)
 OE = digitalio.DigitalInOut(board.D19)
 OE.direction = digitalio.Direction.OUTPUT
@@ -129,7 +121,7 @@ def estop():
     @brief Emergency stop command. Disables the enable pins for the DC motors and stops operation of the servos.
            Purely logical stop that locks out controller input. Does not cut off the power to any of the components.
     '''
-    # bring all DC motors to a stop
+    # bring all DC motors to a stop by setting pwm to 0 and disabling enable pins
     ldc(0x0000)
     ldc_r(0x0000)
     rdc(0x0000)
@@ -142,6 +134,7 @@ def estop():
     # stop the transportation arms and hold them in place
     global u
     move_transport(u)
+    # turn off the "STATUS" LED
     init_LED.duty_cycle = 0x0000
     OE.value = True
     print('EMERGENCY STOP')
@@ -158,7 +151,10 @@ def new_input():
     global turn_ratio_r
     lx = joystick['lx']
     ly = joystick['ly']
+    # turn ratios for skid steering (turns by one side of the wheels moving faster than the other)
+    # pwm ratio for forward drive
     turn_ratio = 1 + 2*abs(lx)
+    # pwm ratio for reverse drive
     turn_ratio_r = 2 - 0.5*abs(lx)
     
 if __name__ == "__main__":
@@ -186,175 +182,168 @@ if __name__ == "__main__":
         shreddoor = "closed"
         shred_weed = "off"
         print("Initialized")
-        n = 0
 
         while True:
             with ControllerResource() as joystick:
                 print(type(joystick).__name__)
                 print("Waiting for input from controller")
+                # turn the "STATUS" LED on to convey that the robot will start taking controller inputs
                 init_LED.duty_cycle = 0xFFFF
                 while joystick.connected: 
                     # read controller inputs
                     new_input()
 
-                    # duty cycle calculations
+                    # duty cycle calculations for driving
+                    # calculation dependent on y position (for angles of 45-135 degrees on the left analogue stick)
                     duty_y = int(round(abs(ly)*100)*0x028F)
+                    # same calculation as above but divided by the turn ratio to offset the wheel speeds for turning
                     duty_ty = int(round(abs(ly)*100)*0x028F//turn_ratio)
+                    # calculation dependent on the x position (for angles of 0-45 and 135-180 degrees on the left analogue stick)
                     duty_x = int(round(abs(lx)*100)*0x028F)
-                    duty_tx = int(round(abs(lx)*100)*0x028F//turn_ratio)
+                    # same calculation as above but divided by the turn ratio to offset the wheel speeds for turning
                     duty_rev = int(round(abs(lx)*100)*0x028F//turn_ratio_r)
 
                     # ROBOT MOVEMENT CONTROL
-                    # forward drive
+                    # forward drive (no turn ratio, full drive)
                     if ly > 0.2:
                         if lx > -0.2 and lx < 0.2:
+                            # disable reverse pwm on both sides 
+                            # FORWARD AND REVERSE PWM MUST NOT BE ON AT THE SAME TIME OR THE MOTOR DRIVERS WILL BURN OUT
                             ldc_r(0x0000)
                             rdc_r(0x0000)
+                            # forward pwms enabled
                             ldc(duty_y)
                             print(duty_y)
                             rdc(duty_y)
                             print(duty_y)
+                            # wait for new inputs
                             new_input()
                             print('forward')
+                            # check for estop (for future implementation use threading instead to listen to the button press?)
                             presses = joystick.check_presses()
                             if presses['home']:
                                 estop()
-                        # skid turn left
+                                
+                        # skid turn left (left wheels at reduced/reverse drive, right wheels at full speed)
                         if lx < -0.2:
+                            # if the left stick angle is within 90-135 degrees
                             if ly > abs(lx):
+                                # disable reverse pwm on both sides 
+                                # FORWARD AND REVERSE PWM MUST NOT BE ON AT THE SAME TIME OR THE MOTOR DRIVERS WILL BURN OUT
                                 ldc_r(0x0000)
                                 rdc_r(0x0000)
+                                # forward pwms enabled
                                 ldc(duty_ty)
                                 print(-duty_ty)
                                 rdc(duty_y)
                                 print(duty_y)
+                                # wait for new inputs
                                 new_input()
                                 print('left')
+                                # check for estop (for future implementation use threading instead to listen to the button press?)
                                 presses = joystick.check_presses()
                                 if presses['home']:
                                     estop()
+                            # if the left stick is within 135-180 degrees (right wheel will drive forward and left will reverse)
                             elif abs(lx) >= ly:
+                                # disable forward pwm on left and reverse pwm on right
+                                # FORWARD AND REVERSE PWM MUST NOT BE ON AT THE SAME TIME OR THE MOTOR DRIVERS WILL BURN OUT
                                 ldc(0x0000)
                                 rdc_r(0x0000)
+                                # reverse left pwm and foward right pwm enabled
                                 ldc_r(duty_rev)
                                 print(-duty_rev)
                                 rdc(duty_x)
                                 print(duty_x)
+                                # wait for new inputs
                                 new_input()
                                 print('left-rev')
+                                # check for estop
                                 presses = joystick.check_presses()
                                 if presses['home']:
                                     estop()
 
-                        # skid turn right    
+                        # skid turn right (right wheels at reduced/reverse drive, left wheels at full speed)  
                         elif lx > 0.2:
+                            # if the left stick angle is within 45-90 degrees
                             if ly > lx:
+                                # disable reverse pwm on both sides 
+                                # FORWARD AND REVERSE PWM MUST NOT BE ON AT THE SAME TIME OR THE MOTOR DRIVERS WILL BURN OUT
                                 ldc_r(0x0000)
                                 rdc_r(0x0000)
+                                # forward pwms enabled
                                 ldc(duty_y)
                                 print(duty_y)
                                 rdc(duty_ty)
                                 print(duty_ty)
+                                # wait for new inputs
                                 new_input()
                                 print('right')
+                                # check for estop
                                 presses = joystick.check_presses()
                                 if presses['home']:
                                     estop()
+                            # if the left stick angle is within 0-45 degrees
                             elif ly <= lx:
+                                # disable reverse pwm on left side and forward pwm on right 
+                                # FORWARD AND REVERSE PWM MUST NOT BE ON AT THE SAME TIME OR THE MOTOR DRIVERS WILL BURN OUT
                                 ldc_r(0x0000)
                                 rdc(0x0000)
+                                # foward left pwm and reverse right pwm enabled
                                 ldc(duty_x)
                                 print(duty_x)
                                 rdc_r(duty_rev)
                                 print(duty_rev)
+                                # wait for new inputs
                                 new_input()
                                 print('right-rev')
+                                # check for estop
                                 presses = joystick.check_presses()
                                 if presses['home']:
                                     estop()
                             
-                    # reverse drive
+                    # reverse drive (no turn ratio, full reverse drive)
+                    # turning in reverse is effectively the same as turning in forward drive
+                    # to back up at an angle, turn in forward drive and then go straight reverse drive (not smooth, will have to optimize later)
                     elif ly < -0.2:
                         if lx > -0.2 and lx < 0.2:
+                            # disable forward pwm on both sides
+                            # FORWARD AND REVERSE PWM MUST NOT BE ON AT THE SAME TIME OR THE MOTOR DRIVERS WILL BURN OUT
                             ldc(0x0000)
                             rdc(0x0000)
+                            # reverse pwms enabled
                             ldc_r(duty_y)
                             print(-duty_y)
                             rdc_r(duty_y)
+                            # wait for new inputs
                             new_input()
                             print('reverse')
+                            # check for estop
                             presses = joystick.check_presses()
                             if presses['home']:
                                 estop()
-                        # skid reverse left
-                        if lx < -0.2:
-                            if abs(ly) > abs(lx):
-                                ldc(0x0000)
-                                rdc(0x0000)
-                                ldc_r(duty_ty)
-                                print(-duty_ty)
-                                rdc_r(duty_ty)
-                                print(-duty_ty)
-                                new_input()
-                                print('rleft')
-                                presses = joystick.check_presses()
-                                if presses['home']:
-                                    estop()
-                            elif abs(ly) <= abs(lx):
-                                ldc_r(0x0000)
-                                rdc(0x0000)
-                                ldc(duty_rev)
-                                print(-duty_rev)
-                                rdc_r(duty_x)
-                                print(-duty_x)
-                                new_input()
-                                print('rleft-forw')
-                                presses = joystick.check_presses()
-                                if presses['home']:
-                                    estop()
-                            
-                        # skid reverse right    
-                        elif lx > 0.2:
-                            if abs(ly) > lx:
-                                ldc(0x0000)
-                                rdc(0x0000)
-                                ldc_r(duty_y)
-                                print(duty_y)
-                                rdc_r(duty_ty)
-                                print(duty_ty)
-                                new_input()
-                                print('rright')
-                                presses = joystick.check_presses()
-                                if presses['home']:
-                                    estop()
-                            if abs(ly) <= lx:
-                                ldc(0x0000)
-                                rdc_r(0x0000)
-                                ldc_r(duty_x)
-                                print(duty_x)
-                                rdc(duty_rev)
-                                print(duty_rev)
-                                new_input()
-                                print('rright-forw')
-                                presses = joystick.check_presses()
-                                if presses['home']:
-                                    estop()
-                    # idle state
+                   
+                    # idle state when the robot is not driving
+                    # the conditions for x and y are offset from 0 due to input noise from the cheap controller
                     else:
                         while ly > -0.2 and ly < 0.2:
+                            # set all pwms to 0 to stop the motors
                             ldc(0x0000)
                             ldc_r(0x0000)
                             rdc(0x0000)
                             rdc_r(0x0000)
+                            # continue to wait for new inputs
                             new_input()
                             presses = joystick.check_presses()
 
                             # OPEN/CLOSE SCOOPER
                             if presses['circle']:
+                                # starts closed, will cycle between closed and open on button press depending on the previous state
                                 if scoop == "closed":
                                     print("Opening scooper")
                                     time.sleep(0.5)
                                     presses = joystick.check_presses()
+                                    # check for estop
                                     if presses['home']:
                                         estop()
                                     move_left(77)
@@ -364,28 +353,26 @@ if __name__ == "__main__":
                                     print("Closing scooper")
                                     time.sleep(0.5)
                                     presses = joystick.check_presses()
+                                    # check for estop
                                     if presses['home']:
                                         estop()
                                     move_left(45)
                                     move_right(47)
-                                    # s = 1
-                                    # while s > 5:
-                                    #     move_left(45-s)
-                                    #     move_right(45+s)
-                                    #     s+=1
-                                    #     time.sleep(0.25)
                                     scoop = "closed"
 
                             # MOVE SCOOPER UP/DOWN
                             elif presses['cross']:
+                                # starts at down position, will cycle between lowered and raised positions on button press depending on the previous state
                                 if lift == "down":
                                     print("Lifting scooper")
                                     u = 30
                                     time.sleep(0.5)
+                                    # moves at small intervals to avoid a sudden swing that could damage/injure surroundings and/or the scooper arms
                                     while u <= 345:
                                         u += 15
                                         move_transport(u)
                                         presses = joystick.check_presses()
+                                        # check for estop
                                         if presses['home']:
                                             estop()
                                         time.sleep(0.3)
@@ -394,10 +381,12 @@ if __name__ == "__main__":
                                     print("Lowering scooper")
                                     u = 345
                                     time.sleep(0.5)
+                                    # moves at small intervals to avoid a sudden swing that could damage/injure surroundings and/or the scooper arms
                                     while u > 30:
                                         move_transport(u)
                                         u -= 15
                                         presses = joystick.check_presses()
+                                        # check for estop
                                         if presses['home']:
                                             estop()
                                         time.sleep(0.3)
@@ -405,10 +394,12 @@ if __name__ == "__main__":
 
                             # OPEN/CLOSE SHREDDER DOOR
                             elif presses['triangle']:
+                                # starts closed, will cycle between closed and open on button press depending on the previous state
                                 if shreddoor == "closed":
                                     print("Opening shredder door")
                                     time.sleep(0.5)
                                     presses = joystick.check_presses()
+                                    # check for estop
                                     if presses['home']:
                                         estop()
                                     move_shreddoor(10)
@@ -417,6 +408,7 @@ if __name__ == "__main__":
                                     print("Closing shredder door")
                                     time.sleep(0.5)
                                     presses = joystick.check_presses()
+                                    # check for estop
                                     if presses['home']:
                                         estop()
                                     move_shreddoor(120)
@@ -437,7 +429,7 @@ if __name__ == "__main__":
                                 estop()
                 
                 # if controller is disconnected, stop all motors
-                # bring all DC motors to a stop
+                # bring all DC motors to a stop by setting pwm to 0 and disabling enable pins
                 ldc(0x0000)
                 ldc_r(0x0000)
                 rdc(0x0000)
@@ -453,7 +445,8 @@ if __name__ == "__main__":
                 OE.value = True
                 print('Controller disconnected')
                 exit()
-
+                
+    # Keyboard Interrupt exception for testing and debugging code
     except KeyboardInterrupt: 
         print("Operation terminated.")
         ldc(0x0000)
