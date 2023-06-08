@@ -67,56 +67,56 @@ OE.value = True
 def move_left(angle):
     '''!
     @brief Controls the rotation of the left scooper servo.
-    @param angle The desired angle for the left servo.
+    @param angle The desired angle for the left servo (int), from 0 to 180.
     '''
     kit.servo[0].angle = angle
 
 def move_right(angle):
     '''!
     @brief Controls the rotation of the right scooper servo.
-    @param angle The desired angle for the right servo.
+    @param angle The desired angle for the right servo (int), from 0 to 180.
     '''
     kit.servo[1].angle = angle
 
 def move_transport(angle):
     '''!
     @brief Controls the rotation of the lifting servo.
-    @param angle The desired angle of the lifting servo.
+    @param angle The desired angle of the lifting servo (int), from 0 to 360.
     '''
     kit.servo[2].angle = angle
 
 def move_shreddoor(angle):
     '''!
     @brief Controls the rotation of the shredder door.
-    @param angle The desired angle of the door servo.
+    @param angle The desired angle of the door servo (int), from 0 to 180.
     '''
     kit.servo[3].angle = angle
 
 def ldc(pwm):
     '''!
     @brief Controls the forward duty cycle of the left DC motor.
-    @param pwm The desired pwm duty cycle.
+    @param pwm The desired pwm duty cycle (int), from 0x0000 to 0xFFFF.
     '''
     l_wheel.duty_cycle = pwm
 
 def ldc_r(pwm):
     '''!
     @brief Controls the reverse duty cycle of the left DC motor.
-    @param pwm The desired pwm duty cycle.
+    @param pwm The desired pwm duty cycle (int), from 0x0000 to 0xFFFF.
     '''
     l_wheel_r.duty_cycle = pwm
 
 def rdc(pwm):
     '''!
     @brief Controls the forward duty cycle of the right DC motor.
-    @param pwm The desired pwm duty cycle.
+    @param pwm The desired pwm duty cycle (int), from 0x0000 to 0xFFFF.
     '''
     r_wheel.duty_cycle = pwm
 
 def rdc_r(pwm):
     '''!
     @brief Controls the reverse duty cycle of the right DC motor.
-    @param pwm The desired pwm duty cycle.
+    @param pwm The desired pwm duty cycle (int), from 0x0000 to 0xFFFF.
     '''
     r_wheel_r.duty_cycle = pwm
 
