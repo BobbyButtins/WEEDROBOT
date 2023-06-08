@@ -1,6 +1,10 @@
-# Cal Poly Mechanical Engineering Senior Project - WEED ROBOT
-# September 2022 - June 2023
-# written by: Jackie Chen
+'''!
+@turtlelord.py
+Cal Poly Mechanical Engineering Senior Project - WEED ROBOT
+
+@author Jackie Chen
+@date   September 2022 - June 2023
+'''
 
 import time
 import busio
