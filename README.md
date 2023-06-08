@@ -1,5 +1,5 @@
 # WEEDROBOT
-Cal Poly SLO, Mechanical Engineering Senior Project
+**Cal Poly SLO, Mechanical Engineering Senior Project**
 
 September 2022 - June 2023
 
@@ -18,6 +18,4 @@ Functions of the robot include:
 -limited weed identification(?)
 
 -storage door movement (opening/closing)
-
--LED showing battery status
 
